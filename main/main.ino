@@ -14,6 +14,8 @@
 */
 
 // include the library
+#include <FS.h>
+#include <SD_MMC.h>
 #include <RadioLib.h>
 
 
@@ -30,10 +32,42 @@
 SX1262 lora = new Module(ss_lora1, dio2_lora1, rst, busy_lora1);
 //SX1262 lora = new Module(ss_lora2, dio2_lora2, rst, busy_lora2);
 
-void setup() {
-  Serial.begin(115200);
 
-  pinMode(ss_lora1, OUTPUT);
+void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
+    Serial.printf("Listing directory: %s\n", dirname);
+
+    File root = fs.open(dirname);
+    if(!root){
+        Serial.println("Failed to open directory");
+        return;
+    }
+    if(!root.isDirectory()){
+        Serial.println("Not a directory");
+        return;
+    }
+
+    File file = root.openNextFile();
+    while(file){
+        if(file.isDirectory()){
+            Serial.print("  DIR : ");
+            Serial.println(file.name());
+            if(levels){
+                listDir(fs, file.name(), levels -1);
+            }
+        } else {
+            Serial.print("  FILE: ");
+            Serial.print(file.name());
+            Serial.print("  SIZE: ");
+            Serial.println(file.size());
+        }
+        file = root.openNextFile();
+    }
+}
+
+
+int initLora() {
+
+pinMode(ss_lora1, OUTPUT);
   pinMode(ss_lora2, OUTPUT);
   digitalWrite(ss_lora1, HIGH);
   digitalWrite(ss_lora2, HIGH);
@@ -59,15 +93,32 @@ void setup() {
     Serial.println(state);
     while (true);
   }
-  // set carrier frequency to 433.5 MHz
+  // set carrier frequency to 915.0 MHz
   if (lora.setFrequency(915.0) == ERR_INVALID_FREQUENCY) {
     Serial.println(F("Selected frequency is invalid for this module!"));
     while (true);
   }
-  
+
 }
 
-void loop() {
+int testSD() {
+    if(!SD_MMC.begin()){
+        Serial.println("Card Mount Failed");
+        return 1;
+    }
+    listDir(SD_MMC, "/", 0);
+    return 0;
+}
+
+void setup() {
+  Serial.begin(115200);
+
+//  initLora();
+  testSD();
+}
+
+
+void loraTransmit() {
   Serial.print(F("[SX1262] Transmitting packet ... "));
 
   // you can transmit C-string or Arduino string up to
@@ -109,4 +160,9 @@ void loop() {
 
   // wait for a second before transmitting again
   delay(1000);
+}
+
+void loop() {
+
+// loraTransmit();
 }
